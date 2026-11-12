@@ -1,5 +1,13 @@
 # Cómo publicar el portal (Google Sheets + Apps Script)
 
+> **Link oficial para alumnos:** https://jorgeas23.github.io/platicas-pirata-y-ron/
+> La página vive en GitHub Pages y guarda los registros en Google Sheets a través de Apps Script.
+> Así no falla aunque el alumno tenga varias cuentas de Google abiertas.
+>
+> - **Si cambias `Code.gs`:** pégalo en Apps Script → Implementar → Gestionar implementaciones → ✏️ → Nueva versión.
+> - **Si cambias `index.html`:** súbelo a GitHub (`git add . && git commit -m "cambio" && git push`).
+> - **Si alguna vez creas una implementación NUEVA en Apps Script** (no "nueva versión"), cambia `API_URL` dentro de `index.html`.
+
 ## 1. Crear la hoja de cálculo
 1. Entra a https://sheets.google.com y crea una hoja nueva.
 2. Ponle nombre, por ejemplo: **Registro Pláticas Pirata y Ron 2026**.
