@@ -1,6 +1,6 @@
 # Cómo publicar el portal (Google Sheets + Apps Script)
 
-> **Link oficial para alumnos:** https://jorgeas23.github.io/platicas-pirata-y-ron/
+> **Link oficial para alumnos:** https://pirata-ron.github.io/
 > La página vive en GitHub Pages y guarda los registros en Google Sheets a través de Apps Script.
 > Así no falla aunque el alumno tenga varias cuentas de Google abiertas.
 >
