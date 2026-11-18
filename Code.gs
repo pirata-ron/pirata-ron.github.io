@@ -58,8 +58,114 @@ function json_(obj) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🏴‍☠️ Pirata y Ron')
+    .addItem('Generar listas de asistencia (PDF)', 'generarListas')
+    .addSeparator()
     .addItem('Preparar hojas', 'prepararHojas')
     .addToUi();
+}
+
+/**
+ * Crea un Google Doc + PDF con una página por plática:
+ * #, Nombre, Matrícula, Carrera / Semestre y espacio para Firma (orden alfabético).
+ */
+function generarListas() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const reg = hoja_('Registros', ENC_REG);
+  const ins = hoja_('Inscripciones', ENC_INS);
+
+  // Folio -> "Carrera · Semestre"
+  const carreras = {};
+  if (reg.getLastRow() > 1) {
+    reg.getRange(2, 1, reg.getLastRow() - 1, ENC_REG.length).getValues().forEach(function (r) {
+      carreras[String(r[1])] = String(r[6]) + ' · ' + String(r[7]);
+    });
+  }
+
+  const porPlatica = {};
+  PLATICAS.forEach(function (p) { porPlatica[p.id] = []; });
+  if (ins.getLastRow() > 1) {
+    ins.getRange(2, 1, ins.getLastRow() - 1, ENC_INS.length).getValues().forEach(function (r) {
+      const id = String(r[1]);
+      if (!porPlatica[id]) return;
+      porPlatica[id].push({
+        nombre: String(r[7]),
+        matricula: String(r[6]),
+        carrera: carreras[String(r[5])] || ''
+      });
+    });
+  }
+
+  const CAFE = '#331a0d', ORO = '#bd8430', CREMA = '#f6efe4';
+  const tz = ss.getSpreadsheetTimeZone();
+  const generado = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
+  const doc = DocumentApp.create('Listas de asistencia · Pláticas de Negocios 2026 (' +
+    Utilities.formatDate(new Date(), tz, 'dd-MM HH.mm') + ')');
+  const body = doc.getBody();
+  body.setMarginTop(36).setMarginBottom(36).setMarginLeft(42).setMarginRight(42);
+
+  const anchos = [26, 190, 82, 130, 100]; // suma = ancho útil de hoja carta
+  const parrafo = function (texto, tam, color, negrita, espacioDespues) {
+    const p = body.appendParagraph(texto);
+    p.setAlignment(DocumentApp.HorizontalAlignment.CENTER).setSpacingBefore(0).setSpacingAfter(espacioDespues || 2);
+    p.editAsText().setFontFamily('Arial').setFontSize(tam).setForegroundColor(color).setBold(!!negrita);
+    return p;
+  };
+
+  PLATICAS.forEach(function (p, i) {
+    if (i > 0) body.appendPageBreak();
+    const lista = porPlatica[p.id].sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); });
+    const dia = p.dia === 'viernes' ? 'Viernes 20 de noviembre' : 'Sábado 21 de noviembre';
+
+    parrafo('PIRATA Y RON · PLÁTICAS DE NEGOCIOS 2026 · LISTA DE ASISTENCIA', 9, ORO, true, 6);
+    parrafo(p.titulo, 16, CAFE, true, 4);
+    parrafo(dia + '  ·  ' + p.hora + '  ·  Ex Templo de San José, Sala de Negocios', 10, CAFE, false, 2);
+    parrafo('Inscritos: ' + lista.length + ' / ' + CUPO, 10, ORO, true, 8);
+
+    const filas = [['#', 'Nombre', 'Matrícula', 'Carrera / Semestre', 'Firma']];
+    lista.forEach(function (a, k) { filas.push([String(k + 1), a.nombre, a.matricula, a.carrera, '']); });
+    if (!lista.length) filas.push(['', 'Sin inscritos', '', '', '']);
+
+    const t = body.appendTable(filas);
+    t.setBorderColor('#cdb89a').setBorderWidth(0.75);
+    anchos.forEach(function (w, c) { t.setColumnWidth(c, w); });
+    for (let f = 0; f < t.getNumRows(); f++) {
+      const row = t.getRow(f);
+      row.setMinimumHeight(f === 0 ? 18 : 21);
+      for (let c = 0; c < row.getNumCells(); c++) {
+        const cell = row.getCell(c);
+        cell.setPaddingTop(3).setPaddingBottom(3).setPaddingLeft(4).setPaddingRight(4)
+          .setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
+        const txt = cell.editAsText().setFontFamily('Arial').setFontSize(f === 0 ? 9 : 9.5);
+        if (f === 0) {
+          cell.setBackgroundColor(CAFE);
+          txt.setBold(true).setForegroundColor('#ffffff');
+        } else {
+          if (f % 2 === 0) cell.setBackgroundColor(CREMA);
+          txt.setBold(false).setForegroundColor('#2a170c');
+        }
+      }
+    }
+    parrafo('Generado: ' + generado, 7.5, '#9a8878', false, 0).setSpacingBefore(6);
+  });
+
+  // Quita el párrafo vacío con el que inicia todo documento nuevo
+  const primero = body.getChild(0);
+  if (primero.getType() === DocumentApp.ElementType.PARAGRAPH && primero.asParagraph().getText() === '') {
+    primero.removeFromParent();
+  }
+  doc.saveAndClose();
+
+  const pdf = DriveApp.createFile(DriveApp.getFileById(doc.getId()).getAs('application/pdf'))
+    .setName(doc.getName() + '.pdf');
+
+  const html = HtmlService.createHtmlOutput(
+    '<div style="font-family:Arial;font-size:14px;line-height:1.6">' +
+    '<p>✅ Listas generadas con los inscritos de este momento.</p>' +
+    '<p>📄 <a href="' + pdf.getUrl() + '" target="_blank"><b>Abrir PDF para imprimir</b></a></p>' +
+    '<p>✏️ <a href="' + doc.getUrl() + '" target="_blank">Abrir en Google Docs (editable)</a></p>' +
+    '<p style="color:#777;font-size:12px">Se guardaron en tu Google Drive. Si hay nuevos registros, vuelve a generarlas.</p></div>'
+  ).setWidth(400).setHeight(210);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Listas de asistencia');
 }
 
 /** Ejecútala una vez: crea las hojas Registros, Inscripciones y Cupos. */
